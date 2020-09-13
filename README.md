@@ -1,6 +1,8 @@
 # cmyk_halftone_filter_gimp
 ### Presentation
 A gimp python filter which mimic a cmyk halftone reprographic technique
+* [Some documentation here]
+(https://en.wikipedia.org/wiki/Halftone)
 
 ![alt text](./epicerie_600.png "before")
 
