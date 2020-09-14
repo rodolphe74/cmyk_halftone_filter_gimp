@@ -122,57 +122,6 @@ def shift_down(ar, w, shift):
     return e[0:len(ar)]
 
 
-def draw_circle_2(img, layer, c_x, c_y, rayon, color):
-    """ draw a plain circle on layer """
-    start_x = c_x - rayon if c_x - rayon > 0 else 0
-    start_y = c_y - rayon if c_y - rayon > 0 else 0
-    width = rayon * 2
-    height = rayon * 2
-    print (start_x, start_y, c_x, c_y, width, height)
-
-    # Make sure this layer supports alpha so we can write to each pixel's
-    # alpha component
-    layer.add_alpha()
-
-    circle_layer = pdb.gimp_layer_new(img, layer.width, layer.height, RGBA_IMAGE, "circle",
-                                      100, LAYER_MODE_NORMAL)
-    pdb.gimp_image_insert_layer(img, circle_layer, None, 0)
-
-    source_region = layer.get_pixel_rgn(
-        start_x, start_y, width+1, height+1, False, False)
-    pixel_size = len(source_region[start_x, start_y])
-    print ("pixel_size:", pixel_size)
-
-    region = circle_layer.get_pixel_rgn(start_x, start_y, start_x+width+1,
-                                        start_y+height+1, True, True)
-
-    pixels = array("B", "\x00" * (width * height * pixel_size))
-    for y in xrange(0, height):
-        for x in xrange(0, width):
-            index = (x + width * y) * pixel_size
-            # pixel = source_pixels[index: index + pixel_size]
-            new_pixel = array('B', [color[0], color[1], color[2], 255])
-            # Write the modified pixel out to our destination array
-            xx = x - rayon
-            yy = y - rayon
-            a = xx*xx + yy*yy
-            b = rayon * rayon
-            if a <= b:
-                pixels[index: index + pixel_size] = new_pixel
-
-    # Copy the whole array into the writeable pixel region
-    region[start_x:start_x+width, start_y:start_y+height] = pixels.tostring()
-
-    # Write our changes back over the original layer
-    circle_layer.flush()
-    circle_layer.merge_shadow(True)
-    circle_layer.update(start_x, start_y, width, height)
-
-    # merge the circle layer and the background layer
-    new_layer = merge_layer(img, layer, circle_layer)
-    return new_layer
-
-
 def get_intensity(x, y, radius):
     """ use for anti-aliasing """
     return abs((math.sqrt((x * x) + (y * y)) - float(radius)) / 1.5)
@@ -278,7 +227,6 @@ def rotate(layer, angle):
     tmp_layer = pdb.gimp_image_get_active_layer(tmp_image)
     pdb.gimp_item_transform_rotate(
         tmp_layer, angle, False, tmp_layer.width/2, tmp_layer.height/2)
-    print(tmp_layer.width, tmp_layer.height)
     pdb.gimp_image_resize(tmp_image, tmp_layer.width, tmp_layer.height, 0, 0)
     pdb.gimp_layer_set_offsets(tmp_layer, 0, 0)
 
@@ -321,7 +269,6 @@ def halftone_layer(img, layer, layer_dest, density, color, circle_size, black_st
         0, 0, layer.width, layer.height, False, False)
     pixel_size = len(source_region[0, 0])
     source_pixels = array("B", source_region[0:layer.width, 0:layer.height])
-    print (pixel_size, len(source_pixels))
 
     region = layer_dest.get_pixel_rgn(
         0, 0, layer_dest.width, layer_dest.height, True, True)
@@ -348,7 +295,8 @@ def halftone_layer(img, layer, layer_dest, density, color, circle_size, black_st
                 # manage black strength
                 max_strength = 510 - black_strength
 
-            isz = get_value_in_range(mean_bright, 0, max_strength, 0, circle_size)
+            isz = get_value_in_range(
+                mean_bright, 0, max_strength, 0, circle_size)
 
             if isz > 0:
                 circles_count += 1
@@ -364,8 +312,8 @@ def halftone_layer(img, layer, layer_dest, density, color, circle_size, black_st
 
     pdb.gimp_progress_end()
     end = timer()
-    print (circles_count, 'in', end - start,
-           float(end - start) / circles_count)
+    print(circles_count, 'in', end - start,
+          float(end - start) / circles_count)
 
 
 def rotate_layer(layer, angle):
@@ -391,7 +339,6 @@ def add_cmyk_layers(img, layer):
         source_region = layer.get_pixel_rgn(0, 0, width, height, False, False)
         source_pixels = array("B", source_region[0:width, 0:height])
         pixel_size = len(source_region[0, 0])
-        print("pixel_size", pixel_size)
 
         # Create component layer in the Image
         component_layer = pdb.gimp_layer_new(img, width, height, RGBA_IMAGE,
@@ -488,7 +435,7 @@ def halftone_gimp(img, layer, slide_density, slide_circle_size, work_size_flag,
     if work_size_flag is True:
         new_width = int(work_size_width)
         new_height = int(height * (new_width / float(width)))
-        print("new_size:", new_width, new_height)
+        print("new_size", new_width, new_height)
         scale_image(img, new_width, new_height)
     else:
         new_width = width
@@ -511,18 +458,16 @@ def halftone_gimp(img, layer, slide_density, slide_circle_size, work_size_flag,
         pdb.gimp_drawable_fill(halftone_layers[k], FILL_WHITE)
 
         start = timer()
-        halftone_layer(img, current_layer, halftone_layers[k], D, COLORS[k], C, B)
+        halftone_layer(img, current_layer,
+                       halftone_layers[k], D, COLORS[k], C, B)
         end = timer()
         print ("halftone in ", end-start)
         rotate_layer(halftone_layers[k], -ANGLES[k])
         x0, y0 = pdb.gimp_drawable_offsets(halftone_layers[k])
         non_empty, x1, y1, x2, y2 = pdb.gimp_selection_bounds(img)
-        print (x0, y0)
-        print (x1, y1, x2, y2)
         xx = new_width/2 - current_layer.width/2
         yy = new_height/2 - current_layer.height/2
 
-        # print xx, yy
         pdb.gimp_layer_set_offsets(halftone_layers[k], x0+xx, y0+yy)
 
     for i_layer in COMPONENT_STRING:
@@ -552,7 +497,6 @@ def halftone_gimp(img, layer, slide_density, slide_circle_size, work_size_flag,
 
     for i_layer in img.layers:
         if i_layer.name.endswith("halftone"):
-            print (i_layer.name)
             img.remove_layer(i_layer)
 
     if revert_size_flag is True:
@@ -574,7 +518,8 @@ register(
         (PF_TOGGLE, "work_size_flag",   "Work on specific size:", 1),
         (PF_INT, "work_size_width", "Specific width:", 2400),
         (PF_TOGGLE, "revert_size_flag",   "Revert original size:", 0),
-        (PF_SPINNER, "black_strength", "Black strength [0,255]:", 150, (0, 255, 1)),
+        (PF_SPINNER, "black_strength",
+         "Black strength [0,255]:", 150, (0, 255, 1)),
         (PF_SPINNER, "slide_angle",
          "Angles method [15,75,0,45], [105,75,90,15], [15,45,0,75], [165,45,90,105] :", 1, (1, 4, 1)),
     ],
